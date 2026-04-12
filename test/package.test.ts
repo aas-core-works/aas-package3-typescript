@@ -2,6 +2,7 @@ import { describe, expect, test } from 'vitest';
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { unzipSync, zipSync } from 'fflate';
+import * as Entry from '../src/index';
 import {
   ErrInvalidFormat,
   ErrNoOriginPart,
@@ -91,6 +92,13 @@ describe('Packaging', () => {
     expect(RelationTypeAasxSpec).toContain('aas-spec');
     expect(RelationTypeAasxSupplementary).toContain('aas-suppl');
     expect(RelationTypeThumbnail).toContain('thumbnail');
+  });
+
+  test('entrypoint re-exports expected symbols', () => {
+    expect(typeof Entry.NewPackaging).toBe('function');
+    expect(Entry.RelationTypeAasxSpec).toBe(RelationTypeAasxSpec);
+    expect(Entry.RelationTypeAasxSupplementary).toBe(RelationTypeAasxSupplementary);
+    expect(Entry.RelationTypeThumbnail).toBe(RelationTypeThumbnail);
   });
 
   test('Require throws in debug mode', () => {
@@ -237,6 +245,202 @@ describe('Packaging', () => {
       '/aasx/some-company/data1.json'
     ]);
     expect(grouped['text/xml'].map((part) => part.URI.pathname)).toEqual(['/aasx/some-company/data.xml']);
+  });
+
+  test('reads chunked stream content with PutPartFromStream', async () => {
+    const packaging = NewPackaging();
+    const pkg = await packaging.CreateInStream(memoryStream());
+
+    const data = new TextEncoder().encode('<aas chunked="true"/>');
+    const chunks = [data.slice(0, 5), data.slice(5, 11), data.slice(11)];
+    let index = 0;
+    const stream = new ReadableStream<Uint8Array>({
+      pull(controller) {
+        if (index >= chunks.length) {
+          controller.close();
+          return;
+        }
+
+        controller.enqueue(chunks[index]);
+        index += 1;
+      }
+    });
+
+    const uri = new URL('https://package.local/aasx/chunked.xml');
+    const part = await pkg.PutPartFromStream(uri, 'application/xml', stream);
+    expect(part.ContentType).toBe('application/xml');
+    expect(part.ReadAllText()).toBe('<aas chunked="true"/>');
+
+    const found = await pkg.MustPart(uri);
+    expect(found.ReadAllText()).toBe('<aas chunked="true"/>');
+  });
+
+  test('UnmakeSpec removes spec and outgoing supplementary relationships', async () => {
+    const packaging = NewPackaging();
+    const pkg = await packaging.CreateInStream(memoryStream());
+
+    const spec = await pkg.PutPart(
+      new URL('https://package.local/aasx/spec.aas.xml'),
+      'application/xml',
+      new TextEncoder().encode('<aas/>')
+    );
+    const supplementary = await pkg.PutPart(
+      new URL('https://package.local/aasx/doc.pdf'),
+      'application/pdf',
+      new Uint8Array([1, 2, 3])
+    );
+
+    await pkg.MakeSpec(spec);
+    await pkg.RelateSupplementaryToSpec(supplementary, spec);
+    expect(await pkg.IsSpec(spec)).toBe(true);
+    expect(await pkg.SupplementaryRelationships()).toHaveLength(1);
+
+    await pkg.UnmakeSpec(spec);
+
+    expect(await pkg.IsSpec(spec)).toBe(false);
+    expect(await pkg.Specs()).toHaveLength(0);
+    expect(await pkg.SupplementaryRelationships()).toHaveLength(0);
+  });
+
+  test('UnmakeSpec enforces spec precondition in debug mode', async () => {
+    const packaging = NewPackaging();
+    const pkg = await packaging.CreateInStream(memoryStream());
+    const part = await pkg.PutPart(
+      new URL('https://package.local/aasx/not-a-spec.aas.xml'),
+      'application/xml',
+      new TextEncoder().encode('<aas/>')
+    );
+
+    globalThis.__AASX_DEBUG_CONTRACTS__ = true;
+    try {
+      await expect(pkg.UnmakeSpec(part)).rejects.toThrow('precondition violation');
+    } finally {
+      globalThis.__AASX_DEBUG_CONTRACTS__ = undefined;
+    }
+  });
+
+  test('UnrelateSupplementaryFromSpec removes supplementary relationship', async () => {
+    const packaging = NewPackaging();
+    const pkg = await packaging.CreateInStream(memoryStream());
+
+    const spec = await pkg.PutPart(
+      new URL('https://package.local/aasx/spec.aas.xml'),
+      'application/xml',
+      new TextEncoder().encode('<aas/>')
+    );
+    const supplementary = await pkg.PutPart(
+      new URL('https://package.local/aasx/doc.pdf'),
+      'application/pdf',
+      new Uint8Array([7, 8, 9])
+    );
+
+    await pkg.MakeSpec(spec);
+    await pkg.RelateSupplementaryToSpec(supplementary, spec);
+    expect(await pkg.SupplementaryRelationships()).toHaveLength(1);
+
+    await pkg.UnrelateSupplementaryFromSpec(supplementary, spec);
+    expect(await pkg.SupplementaryRelationships()).toHaveLength(0);
+  });
+
+  test('UnrelateSupplementaryFromSpec enforces spec precondition in debug mode', async () => {
+    const packaging = NewPackaging();
+    const pkg = await packaging.CreateInStream(memoryStream());
+
+    const specLike = await pkg.PutPart(
+      new URL('https://package.local/aasx/not-spec.aas.xml'),
+      'application/xml',
+      new TextEncoder().encode('<aas/>')
+    );
+    const supplementary = await pkg.PutPart(
+      new URL('https://package.local/aasx/not-linked.pdf'),
+      'application/pdf',
+      new Uint8Array([1])
+    );
+
+    globalThis.__AASX_DEBUG_CONTRACTS__ = true;
+    try {
+      await expect(pkg.UnrelateSupplementaryFromSpec(supplementary, specLike)).rejects.toThrow('precondition violation');
+    } finally {
+      globalThis.__AASX_DEBUG_CONTRACTS__ = undefined;
+    }
+  });
+
+  test('UnsetThumbnail removes existing thumbnail relationship', async () => {
+    const packaging = NewPackaging();
+    const pkg = await packaging.CreateInStream(memoryStream());
+
+    const thumb = await pkg.PutPart(
+      new URL('https://package.local/aasx/thumb.png'),
+      'image/png',
+      new Uint8Array([9, 8, 7])
+    );
+
+    await pkg.SetThumbnail(thumb);
+    expect((await pkg.Thumbnail())?.URI.pathname).toBe('/aasx/thumb.png');
+
+    await pkg.UnsetThumbnail();
+    expect(await pkg.Thumbnail()).toBeNull();
+  });
+
+  test('resolves relative supplementary relationship targets with parent path segments', async () => {
+    const packaging = NewPackaging();
+    const pkg = await packaging.CreateInStream(memoryStream());
+
+    const spec = await pkg.PutPart(
+      new URL('https://package.local/aasx/spec.aas.xml'),
+      'application/xml',
+      new TextEncoder().encode('<aas/>')
+    );
+    const supplementary = await pkg.PutPart(
+      new URL('https://package.local/docs/manual.pdf'),
+      'application/pdf',
+      new Uint8Array([1, 2, 3, 4])
+    );
+
+    await pkg.MakeSpec(spec);
+    await pkg.RelateSupplementaryToSpec(supplementary, spec);
+
+    const bytes = await pkg.Flush();
+    const files = unzipSync(bytes);
+    const relPath = 'aasx/_rels/spec.aas.xml.rels';
+    const relXml = new TextDecoder().decode(files[relPath]);
+    files[relPath] = new TextEncoder().encode(
+      relXml.replace('Target="/docs/manual.pdf"', 'Target="../docs/./manual.pdf"')
+    );
+
+    const reopened = await packaging.OpenReadFromBytes(zipSync(files, { level: 0 }));
+    const rels = await reopened.SupplementaryRelationships();
+    expect(rels).toHaveLength(1);
+    expect(rels[0].Supplementary.URI.pathname).toBe('/docs/manual.pdf');
+  });
+
+  test('supports root-level source part relationships', async () => {
+    const packaging = NewPackaging();
+    const pkg = await packaging.CreateInStream(memoryStream());
+
+    const spec = await pkg.PutPart(
+      new URL('https://package.local/spec.aas.xml'),
+      'application/xml',
+      new TextEncoder().encode('<aas/>')
+    );
+    const supplementary = await pkg.PutPart(
+      new URL('https://package.local/doc.pdf'),
+      'application/pdf',
+      new Uint8Array([5, 6])
+    );
+
+    await pkg.MakeSpec(spec);
+    await pkg.RelateSupplementaryToSpec(supplementary, spec);
+
+    const bytes = await pkg.Flush();
+    const files = unzipSync(bytes);
+    expect(files['_rels/spec.aas.xml.rels']).toBeTruthy();
+
+    const reopened = await packaging.OpenReadFromBytes(bytes);
+    const rels = await reopened.SupplementaryRelationships();
+    expect(rels).toHaveLength(1);
+    expect(rels[0].Spec.URI.pathname).toBe('/spec.aas.xml');
+    expect(rels[0].Supplementary.URI.pathname).toBe('/doc.pdf');
   });
 
   test('can include copied TestResources fixture files as parts', async () => {

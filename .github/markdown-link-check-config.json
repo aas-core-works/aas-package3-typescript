@@ -1,0 +1,13 @@
+{
+  "ignorePatterns": [
+    {
+      "pattern": "^https://admin-shell.io"
+    },
+    {
+      "pattern": "^https://github.com/aas-core-works/aas-package3-typescript"
+    }
+  ],
+  "retryOn429": true,
+  "retryCount": 3,
+  "fallbackRetryDelay": "30s"
+}

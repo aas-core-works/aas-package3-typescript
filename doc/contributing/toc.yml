@@ -1,0 +1,12 @@
+- name: Intro
+  href: intro.md
+- name: Development workflow
+  href: development-workflow.md
+- name: Testing
+  href: testing.md
+- name: Continuous integration
+  href: continuous-integration.md
+- name: Style guide
+  href: style-guide.md
+- name: Releasing
+  href: releasing.md

@@ -1,0 +1,58 @@
+name: Test
+
+on:
+  pull_request:
+    branches:
+      - main
+    types: [opened, synchronize, reopened, edited]
+
+  push:
+    branches:
+      - main
+    tags:
+      - "**"
+
+jobs:
+  test:
+    name: Test on Node ${{ matrix.node-version }}
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        node-version: [20, 22]
+
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v6
+
+      - name: Set up Node ${{ matrix.node-version }}
+        uses: actions/setup-node@v6
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Type check
+        run: npm run typecheck
+
+      - name: Run tests with coverage
+        if: matrix.node-version == 20
+        run: npm run test:coverage
+
+      - name: Run node tests
+        if: matrix.node-version != 20
+        run: npm run test:node
+
+      - name: Run browser tests
+        if: matrix.node-version != 20
+        run: npm run test:browser
+
+      - name: Coveralls GitHub Action
+        if: matrix.node-version == 20
+        uses: coverallsapp/github-action@master
+        with:
+          github-token: ${{ github.token }}
+
+      - name: Build
+        run: npm run build

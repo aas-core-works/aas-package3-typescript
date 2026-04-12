@@ -1,0 +1,62 @@
+{
+  "name": "aas-package3-typescript",
+  "version": "1.0.0-rc.1",
+  "description": "TypeScript AASX v3 packaging library (read/write)",
+  "keywords": [
+    "aas",
+    "aasx",
+    "package",
+    "zip",
+    "xml"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/aas-core-works/aas-package3-typescript.git"
+  },
+  "type": "module",
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsup",
+    "clean": "rm -rf dist coverage",
+    "dev": "vitest",
+    "lint": "eslint src test examples *.ts",
+    "lint:docs": "markdown-link-check README.md doc/**/*.md",
+    "test": "npm run test:node && npm run test:browser",
+    "test:coverage": "vitest run --coverage",
+    "test:node": "vitest run --environment node test/package.test.ts test/node-server.test.ts test/fuzz.test.ts test/dbc.test.ts",
+    "test:browser": "vitest run --environment jsdom test/browser.test.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "devDependencies": {
+    "@types/node": "^25.6.0",
+    "@typescript-eslint/eslint-plugin": "^8.58.1",
+    "@typescript-eslint/parser": "^8.58.1",
+    "@vitest/coverage-v8": "^4.1.4",
+    "eslint": "^10.0.2",
+    "jsdom": "^29.0.2",
+    "markdown-link-check": "^3.14.1",
+    "tsup": "^8.5.1",
+    "typescript": "^5.9.3",
+    "vitest": "^4.1.4"
+  },
+  "dependencies": {
+    "fflate": "^0.8.2",
+    "xmlsax-typescript": "^1.0.0-rc.1"
+  }
+}

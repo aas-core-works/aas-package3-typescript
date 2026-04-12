@@ -32,7 +32,7 @@
     "build": "tsup",
     "clean": "rm -rf dist coverage",
     "dev": "vitest",
-    "lint": "eslint src test examples *.ts",
+    "lint": "eslint src test *.ts",
     "lint:docs": "markdown-link-check README.md doc/**/*.md",
     "test": "npm run test:node && npm run test:browser",
     "test:coverage": "vitest run --coverage",

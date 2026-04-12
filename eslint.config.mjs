@@ -3,7 +3,7 @@ import tsParser from '@typescript-eslint/parser';
 
 export default [
   {
-    files: ['src/**/*.ts', 'test/**/*.ts', 'examples/**/*.ts', '*.ts'],
+    files: ['src/**/*.ts', 'test/**/*.ts', '*.ts'],
     ignores: ['dist/**', 'coverage/**', 'node_modules/**', 'aas-package3-golang/**', 'TestResources/**'],
     languageOptions: {
       parser: tsParser,

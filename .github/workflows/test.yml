@@ -48,11 +48,11 @@ jobs:
         if: matrix.node-version != 20
         run: npm run test:browser
 
-      # - name: Coveralls GitHub Action
-      #   if: matrix.node-version == 20
-      #   uses: coverallsapp/github-action@master
-      #   with:
-      #     github-token: ${{ github.token }}
+      - name: Coveralls GitHub Action
+        if: matrix.node-version == 20
+        uses: coverallsapp/github-action@master
+        with:
+          github-token: ${{ github.token }}
 
       - name: Build
         run: npm run build

@@ -11,5 +11,10 @@ updates:
     directory: "/"
     schedule:
       interval: "weekly"
+    groups:
+      vitest-stack:
+        patterns:
+          - "vitest"
+          - "@vitest/*"
     commit-message:
       prefix: "deps"

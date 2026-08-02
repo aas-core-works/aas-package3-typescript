@@ -52,7 +52,7 @@
     "jsdom": "^30.0.1",
     "markdown-link-check": "^3.14.1",
     "tsup": "^8.5.1",
-    "typescript": "^5.9.3",
+    "typescript": "^7.0.2",
     "vitest": "^4.1.7"
   },
   "dependencies": {
